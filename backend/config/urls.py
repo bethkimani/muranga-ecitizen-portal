@@ -1,14 +1,11 @@
-
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.users.views import RegisterView, CurrentUserView
+from apps.users.login import LoginView
 from apps.users.staff import StaffViewSet
 from apps.service_requests.views import ServiceRequestViewSet
 from apps.categories.views import DepartmentViewSet, CategoryViewSet
@@ -56,7 +53,7 @@ urlpatterns = [
     ),
     path(
         'api/auth/login/',
-        TokenObtainPairView.as_view(),
+        LoginView.as_view(),
         name='token_obtain_pair',
     ),
     path(

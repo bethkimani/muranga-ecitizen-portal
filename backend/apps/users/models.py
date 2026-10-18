@@ -1,6 +1,6 @@
-
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class UserRole(models.TextChoices):
@@ -46,6 +46,16 @@ class User(AbstractUser):
 
     USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = ['username', 'email']
+
+    class Meta(AbstractUser.Meta):
+        # One account per email address, ignoring capitals. Blank emails are allowed to repeat.
+        constraints = [
+            models.UniqueConstraint(
+                Lower('email'),
+                condition=~models.Q(email=''),
+                name='unique_user_email_ci',
+            )
+        ]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.role})"
