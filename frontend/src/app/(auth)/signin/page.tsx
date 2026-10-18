@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircleIcon, EyeIcon, EyeOffIcon, Loader2Icon } from 'lucide-react';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Field } from '@/components/ui';
-import { homeFor, login, logout, normalizePhone } from '@/api/auth';
+import { homeFor, login, logout, looksLikeEmail, normalizePhone } from '@/api/auth';
 import { ApiError } from '@/api/client';
 
 type Role = 'citizen' | 'staff';
@@ -25,16 +25,25 @@ function SignIn() {
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const value = id.trim();
     const next: FormErrors = {};
-    if (!id.trim()) next.id = 'Enter your phone number.';
+
+    if (!value) {
+      next.id = 'Enter your phone number or email address.';
+    } else if (looksLikeEmail(value)) {
+      if (!/^\S+@\S+\.\S+$/.test(value)) next.id = 'Enter a valid email address, like name@example.com.';
+    } else if (!/^(\+254|0)[17]\d{8}$/.test(normalizePhone(value))) {
+      next.id = 'Enter a Kenyan mobile number like 0712 345 678, or your email address.';
+    }
     if (!password) next.password = 'Enter your password.';
+
     setErrors(next);
     setAuthError('');
     if (Object.keys(next).length) return;
 
     setLoading(true);
     try {
-      const user = await login(normalizePhone(id), password);
+      const user = await login(value, password);
 
       if (role === 'staff' && user.role === 'CITIZEN') {
         logout();
@@ -87,21 +96,23 @@ function SignIn() {
       )}
 
       <form onSubmit={submit} className="mt-6 space-y-5" noValidate>
-        <Field
-          label={role === 'staff' ? 'Staff phone number' : 'Phone number'}
-          htmlFor="id"
-          error={errors.id}
-        >
+        <Field label="Phone number or email" htmlFor="id" error={errors.id}>
           <input
             id="id"
-            type="tel"
+            type="text"
+            inputMode="email"
             className={`field h-11 ${errors.id ? 'field-error' : ''}`}
             value={id}
-            onChange={(e) => setId(e.target.value)}
-            placeholder="07XX XXX XXX"
+            onChange={(e) => {
+              setId(e.target.value);
+              if (errors.id) setErrors((x) => ({ ...x, id: undefined }));
+            }}
+            placeholder={role === 'staff' ? 'name@muranga.go.ke or 07XX XXX XXX' : 'name@example.com or 07XX XXX XXX'}
             aria-invalid={!!errors.id}
             aria-describedby={errors.id ? 'id-error' : undefined}
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
           />
         </Field>
 

@@ -15,11 +15,12 @@ export type User = {
   is_phone_verified: boolean;
 };
 
-export async function login(phone_number: string, password: string): Promise<User> {
+// Accepts a phone number or an email address
+export async function login(identifier: string, password: string): Promise<User> {
   const data = await api<{ access: string; refresh: string }>('/auth/login/', {
     method: 'POST',
     auth: false,
-    body: JSON.stringify({ phone_number, password }),
+    body: JSON.stringify({ identifier: normalizeIdentifier(identifier), password }),
   });
   tokens.set(data.access, data.refresh);
   return getMe();
@@ -83,6 +84,14 @@ export function initialsOf(user: User) {
 export function normalizePhone(input: string) {
   const d = input.replace(/[\s-]/g, '');
   return d.startsWith('+254') ? '0' + d.slice(4) : d;
+}
+
+export const looksLikeEmail = (input: string) => input.includes('@');
+
+// An email is only trimmed and lower-cased; anything else is treated as a phone number
+export function normalizeIdentifier(input: string) {
+  const v = input.trim();
+  return looksLikeEmail(v) ? v.toLowerCase() : normalizePhone(v);
 }
 
 // DRF returns { field: ["message"] }; flatten it to { field: "message" }
