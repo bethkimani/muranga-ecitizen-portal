@@ -2,32 +2,41 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   InboxIcon,
   UserCheckIcon,
-  FlagIcon,
-  AlarmClockIcon,
+  FolderKanbanIcon,
+  CheckCircle2Icon,
   ClockIcon,
   LogOutIcon,
   MenuIcon,
   XIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { RequireRole, useCurrentUser } from '@/components/RequireRole';
+import { displayName, initialsOf, logout, roleLabel } from '@/api/auth';
 
 const officerNavLinks = [
   { label: 'Assigned to me', href: '/officer', queue: 'assigned', icon: UserCheckIcon },
   { label: 'Awaiting assignment', href: '/officer?queue=new', queue: 'new', icon: InboxIcon },
-  { label: 'Priority cases', href: '/officer?queue=priority', queue: 'priority', icon: FlagIcon },
-  { label: 'Near or past deadline', href: '/officer?queue=sla', queue: 'sla', icon: AlarmClockIcon },
+  { label: 'All open cases', href: '/officer?queue=open', queue: 'open', icon: FolderKanbanIcon },
+  { label: 'Resolved or rejected', href: '/officer?queue=done', queue: 'done', icon: CheckCircle2Icon },
   { label: 'Recently updated', href: '/officer?queue=recent', queue: 'recent', icon: ClockIcon },
 ];
 
 function OfficerSidebar() {
   const pathname = usePathname();
   const params = useSearchParams();
+  const router = useRouter();
+  const user = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
   const currentQueue = params.get('queue') ?? 'assigned';
+
+  function signOut() {
+    logout();
+    router.replace('/signin');
+  }
 
   return (
     <>
@@ -76,20 +85,27 @@ function OfficerSidebar() {
           </nav>
         </div>
 
+        {/* Signed-in account */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm">
-                JK
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm">
+                {initialsOf(user)}
               </div>
-              <div>
-                <p className="text-xs font-bold text-white">James Kariuki</p>
-                <p className="text-[11px] text-slate-400">Officer</p>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-white">{displayName(user)}</p>
+                <p className="text-[11px] text-slate-400">{roleLabel(user.role)}</p>
               </div>
             </div>
-            <Link href="/signin" className="text-slate-400 hover:text-white transition-colors" title="Sign Out">
+            <button
+              type="button"
+              onClick={signOut}
+              className="text-slate-400 hover:text-white transition-colors"
+              title="Sign Out"
+              aria-label="Sign out"
+            >
               <LogOutIcon className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -99,11 +115,13 @@ function OfficerSidebar() {
 
 export default function OfficerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      <Suspense fallback={<div className="w-64 bg-slate-900" />}>
-        <OfficerSidebar />
-      </Suspense>
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
-    </div>
+    <RequireRole allow={['STAFF', 'DEPT_HEAD', 'ADMIN']}>
+      <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+        <Suspense fallback={<div className="w-64 bg-slate-900" />}>
+          <OfficerSidebar />
+        </Suspense>
+        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
+      </div>
+    </RequireRole>
   );
 }
