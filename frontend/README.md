@@ -41,26 +41,98 @@ The portal bridges public service request delivery with county management across
 
 ```text
 muranga-ecitizen-frontend/
+│
+├── public/
+│   ├── images/
+│   ├── icons/
+│   ├── logos/
+│   └── favicon.ico
+│
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/              # Sign-in & Citizen Registration
-│   │   ├── admin/               # Admin portal layout & dynamic sub-routes
-│   │   │   ├── analytics/
-│   │   │   ├── departments/
-│   │   │   ├── requests/
-│   │   │   ├── system/
-│   │   │   └── users/
-│   │   ├── officer/             # Field officer workspace & dynamic cases
-│   │   │   └── case/[id]/
-│   │   ├── requests/            # Public citizen request submission & tracking
-│   │   ├── layout.tsx           # Global root layout
-│   │   └── page.tsx             # Public landing page
-│   ├── components/              # UI components (Cards, Navbars, Modals)
-│   └── lib/                     # API helpers & type definitions
-├── public/                      # Static assets & county branding
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── globals.css
+│   │   │
+│   │   ├── (auth)/
+│   │   │   ├── signin/
+│   │   │   │   └── page.tsx
+│   │   │   ├── register/
+│   │   │   │   └── page.tsx
+│   │   │   └── verify/
+│   │   │       └── page.tsx
+│   │   │
+│   │   ├── portal/
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── submit/page.tsx
+│   │   │   ├── requests/page.tsx
+│   │   │   ├── requests/[ref]/page.tsx
+│   │   │   ├── track/page.tsx
+│   │   │   ├── notifications/page.tsx
+│   │   │   ├── services/page.tsx
+│   │   │   ├── profile/page.tsx
+│   │   │   ├── settings/page.tsx
+│   │   │   └── help/page.tsx
+│   │   │
+│   │   ├── officer/
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── case/[id]/page.tsx
+│   │   │
+│   │   ├── admin/
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── analytics/page.tsx
+│   │   │   ├── requests/page.tsx
+│   │   │   ├── users/page.tsx
+│   │   │   ├── departments/page.tsx
+│   │   │   ├── categories/page.tsx
+│   │   │   ├── locations/page.tsx
+│   │   │   ├── announcements/page.tsx
+│   │   │   ├── reports/page.tsx
+│   │   │   ├── audit/page.tsx
+│   │   │   ├── assignment/page.tsx
+│   │   │   ├── settings/page.tsx
+│   │   │   └── system/page.tsx
+│   │   │
+│   │   ├── services/page.tsx
+│   │   ├── help/page.tsx
+│   │   └── track/page.tsx
+│   │
+│   ├── components/
+│   │   ├── ui/
+│   │   ├── layout/
+│   │   ├── forms/
+│   │   ├── portal/
+│   │   ├── officer/
+│   │   └── admin/
+│   │
+│   ├── lib/
+│   │   ├── api.ts
+│   │   ├── auth.ts
+│   │   ├── utils.ts
+│   │   └── validations.ts
+│   │
+│   ├── hooks/
+│   ├── types/
+│   ├── constants/
+│   └── services/
+│       ├── auth.service.ts
+│       ├── requests.service.ts
+│       ├── notifications.service.ts
+│       └── users.service.ts
+│
+├── .env.example
+├── .gitignore
+├── eslint.config.mjs
+├── next.config.ts
 ├── package.json
-├── tailwind.config.ts
-└── tsconfig.json
+├── package-lock.json
+├── tsconfig.json
+└── README.md
+
+
  Local Development Setup
 Prerequisites
 Node.js v18.0 or higher
