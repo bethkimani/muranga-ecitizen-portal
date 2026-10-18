@@ -3,6 +3,7 @@ from rest_framework import serializers, viewsets
 
 from apps.audit_logs.mixins import AuditActorMixin
 from .permissions import IsAdminRole
+from .serializers import check_email_free
 
 User = get_user_model()
 STAFF_CHOICES = ('STAFF', 'DEPT_HEAD', 'ADMIN')
@@ -25,6 +26,9 @@ class StaffSerializer(serializers.ModelSerializer):
         if value not in STAFF_CHOICES:
             raise serializers.ValidationError('Role must be STAFF, DEPT_HEAD or ADMIN.')
         return value
+
+    def validate_email(self, value):
+        return check_email_free(value, self.instance)
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)

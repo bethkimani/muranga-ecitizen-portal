@@ -80,6 +80,19 @@ $refA = $r.Data.refresh
 $r = Call POST "/api/auth/login/" @{ phone_number = $phoneB; password = $pw }
 $tokB = $r.Data.access
 Check "Login user B (200)" ($r.Status -eq 200) "got $($r.Status)"
+
+# ---- Login with phone number or email as "identifier" ----
+$r = Call POST "/api/auth/login/" @{ identifier = $phoneA; password = $pw }
+Check "Login with phone as identifier (200)" ($r.Status -eq 200 -and $r.Data.access) "got $($r.Status)"
+$r = Call POST "/api/auth/login/" @{ identifier = "ta$n@example.com"; password = $pw }
+Check "Login with email (200)" ($r.Status -eq 200 -and $r.Data.access) "got $($r.Status)"
+$r = Call POST "/api/auth/login/" @{ identifier = "TA$n@EXAMPLE.COM"; password = $pw }
+Check "Login with email in capitals (200)" ($r.Status -eq 200) "got $($r.Status)"
+$r = Call POST "/api/auth/login/" @{ identifier = "ta$n@example.com"; password = "wrong-password" }
+Check "Email with wrong password rejected (401)" ($r.Status -eq 401) "got $($r.Status)"
+$r = Call POST "/api/auth/login/" @{ identifier = "nobody$n@example.com"; password = $pw }
+Check "Unknown email rejected (401)" ($r.Status -eq 401) "got $($r.Status)"
+
 $r = Call POST "/api/auth/refresh/" @{ refresh = $refA }
 Check "Refresh token returns new access (200)" ($r.Status -eq 200 -and $r.Data.access) "got $($r.Status)"
 
