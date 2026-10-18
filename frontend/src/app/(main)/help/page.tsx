@@ -48,13 +48,13 @@ const statuses: { s: RequestStatus; d: string }[] = [
   { s: 'Rejected', d: 'Outside county mandate or a duplicate. An explanation is always provided.' },
 ];
 
-export default function HelpPage() {
+export default function PortalHelpPage() {
   const [q, setQ] = useState('');
   const [sent, setSent] = useState(false);
   const results = faqs.filter((f) => (f.q + f.a).toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl">
       <div className="rounded-2xl bg-brand-dark px-6 py-10 text-center text-white md:py-14">
         <h1 className="text-3xl font-extrabold tracking-tight">How can we help?</h1>
         <label className="relative mx-auto mt-6 block max-w-xl">
@@ -163,7 +163,7 @@ export default function HelpPage() {
               <Field label="Message" htmlFor="hm">
                 <textarea id="hm" required rows={4} className="field" />
               </Field>
-              <button className="btn-primary w-full">
+              <button type="submit" className="btn-primary w-full">
                 <SendIcon className="h-4 w-4" /> Send message
               </button>
             </form>
