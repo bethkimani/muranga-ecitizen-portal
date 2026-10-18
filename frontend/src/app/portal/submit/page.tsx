@@ -4,56 +4,49 @@ import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   ArrowLeftIcon, ArrowRightIcon, BellRingIcon, CheckIcon,
-  Loader2Icon, MessageSquareIcon, PencilIcon,
+  Loader2Icon, PencilIcon, RefreshCwIcon, WifiOffIcon,
 } from 'lucide-react';
-import { categories, subCounties } from '@/data/categories';
-import { Field } from '@/components/ui';
+import { subCounties } from '@/data/categories';
+import { EmptyState, Field, Skeleton } from '@/components/ui';
 import { StatusBadge } from '@/components/StatusBadge';
-import { UploadField, type Upload } from '@/components/submit/UploadField';
 import { MapPicker } from '@/components/submit/MapPicker';
-import type { CategoryId } from '@/types/request';
+import { createRequest, type ApiRequest } from '@/api/requests';
+import { useLookups } from '@/hooks/useLookups';
+import { categoryIcon } from '@/utils/categoryIcon';
+import { formatCoords, type LatLng } from '@/utils/coords';
+import { errorMessage } from '@/utils/errors';
+import { formatDate } from '@/utils/format';
 
 const steps = ['Service', 'Describe', 'Location', 'Review'];
-const urgency = [
-  { v: 'Low', d: 'Inconvenient, not urgent' },
-  { v: 'Medium', d: 'Affects daily life' },
-  { v: 'High', d: 'Risk to safety or property' },
-];
-
-type Pin = { x: number; y: number };
 
 function SubmitRequest() {
   const params = useSearchParams();
-  const initialCategory =
-    categories.find((c) => c.id === params.get('category'))?.id ?? null;
+  const lookups = useLookups();
+  const preselect = Number(params.get('category')) || null;
 
   const [step, setStep] = useState(0);
-  const [category, setCategory] = useState<CategoryId | null>(initialCategory as CategoryId | null);
-  const [sub, setSub] = useState('');
+  const [category, setCategory] = useState<number | null>(preselect);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [observed, setObserved] = useState('');
-  const [level, setLevel] = useState('Medium');
-  const [files, setFiles] = useState<Upload[]>([]);
   const [subCounty, setSubCounty] = useState('');
   const [ward, setWard] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [pin, setPin] = useState<Pin | null>(null);
+  const [pin, setPin] = useState<LatLng | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [created, setCreated] = useState<ApiRequest | null>(null);
 
-  const cat = categories.find((c) => c.id === category);
+  const cat = lookups.findCategory(category);
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (step === 0 && !category) e.category = 'Choose the service that best matches your issue.';
+    if (step === 0 && !cat) e.category = 'Choose the service that best matches your issue.';
     if (step === 1) {
       if (title.trim().length < 8) e.title = 'Give your request a short title (at least 8 characters).';
       if (desc.trim().length < 20) e.desc = 'Describe the issue in a little more detail (at least 20 characters).';
-      if (files.some((f) => f.progress < 100 && !f.error)) e.files = 'Wait for photos to finish uploading.';
     }
     if (step === 2) {
       if (!subCounty) e.subCounty = 'Select a sub-county.';
@@ -68,32 +61,41 @@ function SubmitRequest() {
     if (validate()) setStep((s) => s + 1);
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (!cat) return;
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const res = await createRequest({
+        title: title.trim(),
+        description: desc.trim(),
+        category: cat.id,
+        sub_county: subCounty,
+        ward,
+        landmark: landmark.trim(),
+        ...(pin ? { coordinates: formatCoords(pin) } : {}),
+      });
+      setCreated(res);
+    } catch (err) {
+      toast.error(errorMessage(err, 'We could not submit your request. Please try again.'));
+    } finally {
       setSubmitting(false);
-      setDone(true);
-    }, 1100);
+    }
   };
 
   const reset = () => {
     setStep(0);
     setCategory(null);
-    setSub('');
     setTitle('');
     setDesc('');
-    setObserved('');
-    setLevel('Medium');
-    setFiles([]);
     setSubCounty('');
     setWard('');
     setLandmark('');
     setPin(null);
     setErrors({});
-    setDone(false);
+    setCreated(null);
   };
 
-  if (done) {
+  if (created) {
     return (
       <div className="mx-auto max-w-xl">
         <motion.div
@@ -112,35 +114,29 @@ function SubmitRequest() {
           <div className="p-6">
             <div className="rounded-xl bg-canvas p-4 text-center">
               <p className="text-xs font-semibold text-muted">Your reference number</p>
-              <p className="mt-1 font-mono text-2xl font-bold tracking-wide text-ink">MCG-2026-004841</p>
-              <p className="mt-1 text-xs text-muted">Keep this to track your request without signing in.</p>
+              <p className="mt-1 font-mono text-2xl font-bold tracking-wide text-ink">{created.ref_number}</p>
+              <p className="mt-1 text-xs text-muted">Keep this to track your request.</p>
             </div>
             <dl className="mt-5 grid grid-cols-3 gap-4 text-sm">
               <div>
-                <dt className="text-muted">Category</dt>
-                <dd className="mt-0.5 font-semibold text-ink">{cat?.name.split(' ')[0]}</dd>
+                <dt className="text-muted">Service</dt>
+                <dd className="mt-0.5 font-semibold text-ink">{cat?.name ?? '—'}</dd>
               </div>
               <div>
                 <dt className="text-muted">Submitted</dt>
-                <dd className="mt-0.5 font-semibold text-ink">17 Oct 2026</dd>
+                <dd className="mt-0.5 font-semibold text-ink">{formatDate(created.submitted_at)}</dd>
               </div>
               <div>
                 <dt className="text-muted">Status</dt>
-                <dd className="mt-0.5"><StatusBadge status="Pending" /></dd>
+                <dd className="mt-0.5"><StatusBadge status={created.status} /></dd>
               </div>
             </dl>
-            <div className="mt-6 space-y-3 border-t border-line pt-5 text-sm text-muted">
-              <p className="flex gap-3">
-                <BellRingIcon className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                You’ll get an in-app notification each time the department publishes an update.
-              </p>
-              <p className="flex gap-3">
-                <MessageSquareIcon className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                SMS and email updates will be sent once the county enables these channels.
-              </p>
-            </div>
+            <p className="mt-6 flex gap-3 border-t border-line pt-5 text-sm text-muted">
+              <BellRingIcon className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+              You’ll see each update the department publishes on your request’s page.
+            </p>
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
-              <Link href="/portal/requests/MCG-2026-004812" className="btn-primary h-11">View Request</Link>
+              <Link href={`/portal/requests/${created.id}`} className="btn-primary h-11">View Request</Link>
               <button type="button" onClick={reset} className="btn-secondary h-11">Submit Another Request</button>
             </div>
           </div>
@@ -149,27 +145,16 @@ function SubmitRequest() {
     );
   }
 
-  const attached = files.filter((f) => !f.error).length;
   const reviewGroups = [
-    { s: 0, title: 'Service', rows: [['Category', cat?.name ?? '—'], ['Type', sub || 'Not specified']] },
-    {
-      s: 1,
-      title: 'Issue',
-      rows: [
-        ['Title', title],
-        ['Description', desc],
-        ['Observed', observed || 'Not specified'],
-        ['Urgency', level],
-        ['Photos', attached ? `${attached} attached` : 'None'],
-      ],
-    },
+    { s: 0, title: 'Service', rows: [['Service', cat?.name ?? '—']] },
+    { s: 1, title: 'Issue', rows: [['Title', title], ['Description', desc]] },
     {
       s: 2,
       title: 'Location',
       rows: [
         ['Sub-county / Ward', `${subCounty} · ${ward}`],
         ['Landmark', landmark],
-        ['Map pin', pin ? 'Pinned' : 'Not pinned'],
+        ['Map pin', pin ? formatCoords(pin) : 'Not pinned'],
       ],
     },
   ];
@@ -177,7 +162,7 @@ function SubmitRequest() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-extrabold tracking-tight text-ink md:text-[28px]">Report an issue</h1>
-      <p className="mt-1 text-muted">Tell us what’s wrong and where. Fields marked optional can be skipped.</p>
+      <p className="mt-1 text-muted">Tell us what’s wrong and where.</p>
 
       <ol className="mt-6 grid grid-cols-4 gap-2" aria-label="Progress">
         {steps.map((s, i) => (
@@ -205,60 +190,58 @@ function SubmitRequest() {
                 {errors.category && (
                   <p role="alert" className="mt-1 text-sm font-medium text-danger">{errors.category}</p>
                 )}
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {categories.map((c) => {
-                    const Icon = c.icon;
-                    const sel = category === c.id;
-                    return (
-                      <label
-                        key={c.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors duration-150 ${
-                          sel ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-brand/40'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="category"
-                          className="sr-only"
-                          checked={sel}
-                          onChange={() => {
-                            setCategory(c.id);
-                            setSub('');
-                            setErrors({});
-                          }}
-                        />
-                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${sel ? 'bg-brand text-white' : 'bg-canvas text-brand'}`}>
-                          <Icon className="h-5 w-5" aria-hidden="true" />
-                        </span>
-                        <span>
-                          <span className="block font-semibold text-ink">{c.name}</span>
-                          <span className="mt-0.5 block text-xs leading-relaxed text-muted">{c.description}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {cat && (
-                  <div className="mt-6">
-                    <p className="text-sm font-semibold text-ink">
-                      What kind of {cat.name.toLowerCase()} issue?{' '}
-                      <span className="text-xs font-medium text-muted">Optional</span>
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {cat.subcategories.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setSub(sub === s ? '' : s)}
-                          aria-pressed={sub === s}
-                          className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors duration-150 ${
-                            sub === s ? 'border-brand bg-brand text-white' : 'border-line text-ink hover:border-brand/40'
+
+                {lookups.loading ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+                  </div>
+                ) : lookups.error ? (
+                  <EmptyState
+                    icon={WifiOffIcon}
+                    title="We couldn’t load the services"
+                    body={lookups.error}
+                    action={
+                      <button type="button" className="btn-primary" onClick={lookups.reload}>
+                        <RefreshCwIcon className="h-4 w-4" /> Try again
+                      </button>
+                    }
+                  />
+                ) : lookups.categories.length === 0 ? (
+                  <p className="mt-4 text-sm text-muted">No services are available right now. Please check back later.</p>
+                ) : (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {lookups.categories.map((c) => {
+                      const Icon = categoryIcon(c.name);
+                      const sel = category === c.id;
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors duration-150 ${
+                            sel ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-brand/40'
                           }`}
                         >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
+                          <input
+                            type="radio"
+                            name="category"
+                            className="sr-only"
+                            checked={sel}
+                            onChange={() => {
+                              setCategory(c.id);
+                              setErrors({});
+                            }}
+                          />
+                          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${sel ? 'bg-brand text-white' : 'bg-canvas text-brand'}`}>
+                            <Icon className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-ink">{c.name}</span>
+                            {c.description && (
+                              <span className="mt-0.5 block text-xs leading-relaxed text-muted">{c.description}</span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
               </fieldset>
@@ -287,56 +270,12 @@ function SubmitRequest() {
                     id="desc"
                     value={desc}
                     onChange={(e) => setDesc(e.target.value)}
-                    rows={5}
+                    rows={6}
                     maxLength={1000}
                     className={`field ${errors.desc ? 'field-error' : ''}`}
                     aria-invalid={!!errors.desc}
                   />
                 </Field>
-                <div className="grid gap-5 sm:grid-cols-[200px_1fr]">
-                  <Field label="Date observed" htmlFor="observed" optional>
-                    <input
-                      id="observed"
-                      type="date"
-                      max="2026-10-17"
-                      value={observed}
-                      onChange={(e) => setObserved(e.target.value)}
-                      className="field h-11"
-                    />
-                  </Field>
-                  <fieldset>
-                    <legend className="mb-1.5 text-sm font-semibold text-ink">How urgent is it?</legend>
-                    <div className="grid grid-cols-3 gap-2">
-                      {urgency.map((u) => (
-                        <label
-                          key={u.v}
-                          className={`cursor-pointer rounded-lg border px-3 py-2 transition-colors duration-150 ${
-                            level === u.v ? 'border-brand bg-brand-50' : 'border-line hover:border-brand/40'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="urgency"
-                            className="sr-only"
-                            checked={level === u.v}
-                            onChange={() => setLevel(u.v)}
-                          />
-                          <span className="block text-sm font-semibold text-ink">{u.v}</span>
-                          <span className="block text-[11px] leading-tight text-muted">{u.d}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                </div>
-                <div>
-                  <p className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-ink">
-                    Supporting photos <span className="text-xs font-medium text-muted">Optional</span>
-                  </p>
-                  <UploadField files={files} onChange={setFiles} />
-                  {errors.files && (
-                    <p role="alert" className="mt-1.5 text-xs font-medium text-danger">{errors.files}</p>
-                  )}
-                </div>
               </div>
             )}
 
@@ -440,6 +379,7 @@ function SubmitRequest() {
                 setErrors({});
                 setStep((s) => s - 1);
               }}
+              disabled={submitting}
               className="btn-secondary h-11"
             >
               <ArrowLeftIcon className="h-4 w-4" /> Back
@@ -448,16 +388,11 @@ function SubmitRequest() {
             <span />
           )}
           {step < 3 ? (
-            <button type="button" onClick={next} className="btn-primary h-11 px-6">
+            <button type="button" onClick={next} disabled={lookups.loading} className="btn-primary h-11 px-6">
               Continue <ArrowRightIcon className="h-4 w-4" />
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className="btn-primary h-12 px-7 text-[15px]"
-            >
+            <button type="button" onClick={submit} disabled={submitting} className="btn-primary h-12 px-7 text-[15px]">
               {submitting ? (
                 <>
                   <Loader2Icon className="h-4 w-4 animate-spin" /> Submitting…
