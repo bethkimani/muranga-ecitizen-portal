@@ -13,6 +13,12 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def env_list(name, default=''):
+    """Comma-separated env var -> clean list (strips spaces and trailing slashes)."""
+    return [v.strip().rstrip('/') for v in os.getenv(name, default).split(',') if v.strip()]
+
+
 # Security
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
@@ -23,7 +29,10 @@ if not SECRET_KEY:
     else:
         raise RuntimeError('SECRET_KEY must be set in the environment when DEBUG is False')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+_render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')  # set automatically by Render
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
@@ -54,6 +63,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -111,11 +121,17 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS for the Next.js frontend
-CORS_ALLOWED_ORIGINS = [
-    'https://muranga-ecitizen-frontend.vercel.app/',
-    'https://muranga-ecitizen-frontend.vercel.app/',
-]
+# CORS for the Next.js frontend.
+# On Render set: CORS_ALLOWED_ORIGINS=http://localhost:3000,https://muranga-ecitizen-frontend.vercel.app
+# Trailing slashes are stripped automatically (they break corsheaders.E014).
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000',
+)
+CSRF_TRUSTED_ORIGINS = [o for o in CORS_ALLOWED_ORIGINS if o.startswith('https://')]
+_render_url = os.getenv('RENDER_EXTERNAL_URL')
+if _render_url:
+    CSRF_TRUSTED_ORIGINS.append(_render_url.rstrip('/'))
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -130,11 +146,23 @@ TIME_ZONE = 'Africa/Nairobi'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
+# Static files (served by whitenoise in production)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Email (prints to the console in development)
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
+
+# Production security (Render terminates HTTPS and forwards the protocol header)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Email (prints to the console unless EMAIL_BACKEND is set)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 
 # Africa's Talking SMS
