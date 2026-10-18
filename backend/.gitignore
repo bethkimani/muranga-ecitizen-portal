@@ -1,0 +1,19 @@
+cd C:\Users\Beth\muranga-ecitizen-portal
+
+@"
+# Python / Django
+backend/venv/
+__pycache__/
+*.pyc
+db.sqlite3
+backend/staticfiles/
+
+# Secrets
+.env
+backend/.env
+.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+"@ | Set-Content -Encoding ascii .gitignore
