@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircleIcon, EyeIcon, EyeOffIcon, Loader2Icon } from 'lucide-react';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Field } from '@/components/ui';
+import { homeFor, login, logout, normalizePhone } from '@/api/auth';
+import { ApiError } from '@/api/client';
 
 type Role = 'citizen' | 'staff';
 type FormErrors = { id?: string; password?: string };
@@ -21,34 +23,35 @@ function SignIn() {
   const [authError, setAuthError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const next: FormErrors = {};
-    if (!id.trim()) {
-      next.id =
-        role === 'staff'
-          ? 'Enter your county staff email.'
-          : 'Enter your email address or phone number.';
-    }
+    if (!id.trim()) next.id = 'Enter your phone number.';
     if (!password) next.password = 'Enter your password.';
     setErrors(next);
     setAuthError('');
     if (Object.keys(next).length) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (password === 'wrong') {
-        setAuthError('The details you entered don’t match our records. Check them and try again.');
+    try {
+      const user = await login(normalizePhone(id), password);
+
+      if (role === 'staff' && user.role === 'CITIZEN') {
+        logout();
+        setAuthError('This account is not a county staff account.');
         return;
       }
-      if (role === 'staff') {
-        const isAdmin = id.trim().toLowerCase().startsWith('admin');
-        router.push(isAdmin ? '/admin' : '/officer');
-      } else {
-        router.push('/portal');
-      }
-    }, 700);
+
+      router.push(homeFor(user.role));
+    } catch (err) {
+      setAuthError(
+        err instanceof ApiError && err.status === 401
+          ? 'The details you entered don’t match our records. Check them and try again.'
+          : 'Could not reach the server. Make sure the backend is running.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -85,16 +88,17 @@ function SignIn() {
 
       <form onSubmit={submit} className="mt-6 space-y-5" noValidate>
         <Field
-          label={role === 'staff' ? 'Staff email' : 'Email or phone number'}
+          label={role === 'staff' ? 'Staff phone number' : 'Phone number'}
           htmlFor="id"
           error={errors.id}
         >
           <input
             id="id"
+            type="tel"
             className={`field h-11 ${errors.id ? 'field-error' : ''}`}
             value={id}
             onChange={(e) => setId(e.target.value)}
-            placeholder={role === 'staff' ? 'name@muranga.go.ke' : 'you@example.com or 07XX XXX XXX'}
+            placeholder="07XX XXX XXX"
             aria-invalid={!!errors.id}
             aria-describedby={errors.id ? 'id-error' : undefined}
             autoComplete="username"
@@ -153,13 +157,9 @@ function SignIn() {
         </p>
       ) : (
         <p className="mt-8 rounded-xl bg-canvas p-4 text-xs leading-relaxed text-muted">
-          Staff accounts are created by a county administrator. Demo: emails starting with “admin” open the
-          admin console; others open the officer workspace.
+          Staff accounts are created by a county administrator.
         </p>
       )}
-      <p className="mt-4 text-center text-xs text-muted">
-        Demo tip: use the password “wrong” to preview the error state.
-      </p>
     </AuthLayout>
   );
 }

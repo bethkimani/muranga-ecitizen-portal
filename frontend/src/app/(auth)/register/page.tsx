@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CheckIcon, EyeIcon, EyeOffIcon, Loader2Icon } from 'lucide-react';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Field } from '@/components/ui';
+import { register, login, normalizePhone, fieldErrors } from '@/api/auth';
+import { ApiError } from '@/api/client';
 
 type Form = {
   name: string;
@@ -38,7 +40,6 @@ const channels = [
 
 export default function RegisterPage() {
   const router = useRouter();
-  const timer = useRef<ReturnType<typeof setTimeout>>();
   const [f, setF] = useState<Form>({
     name: '',
     email: '',
@@ -52,8 +53,6 @@ export default function RegisterPage() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const s = strength(f.password);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     setF((p) => ({ ...p, [k]: v }));
@@ -73,13 +72,41 @@ export default function RegisterPage() {
     return e;
   };
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length) return;
+
+    const phone = normalizePhone(f.phone);
+    const [first, ...rest] = f.name.trim().split(/\s+/);
+
     setLoading(true);
-    timer.current = setTimeout(() => router.push('/auth/verify'), 800);
+    try {
+      await register({
+        phone_number: phone,
+        username: phone,
+        email: f.email.trim(),
+        password: f.password,
+        first_name: first,
+        last_name: rest.join(' '),
+      });
+      await login(phone, f.password);
+      router.push('/portal');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        const fe = fieldErrors(err.data);
+        setErrors({
+          phone: fe.phone_number || fe.username,
+          email: fe.email,
+          password: fe.password,
+        });
+      } else {
+        setErrors({ email: 'Could not reach the server. Try again.' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const input = (

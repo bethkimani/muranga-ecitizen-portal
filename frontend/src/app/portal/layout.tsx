@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboardIcon,
   PlusCircleIcon,
@@ -16,6 +16,8 @@ import {
   XIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { RequireRole, useCurrentUser } from '@/components/RequireRole';
+import { displayName, initialsOf, logout, roleLabel } from '@/api/auth';
 
 const citizenNavLinks = [
   { label: 'Dashboard', href: '/portal', icon: LayoutDashboardIcon },
@@ -29,7 +31,14 @@ const citizenNavLinks = [
 
 function PortalSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  function signOut() {
+    logout();
+    router.replace('/signin');
+  }
 
   return (
     <>
@@ -61,18 +70,14 @@ function PortalSidebar() {
             {citizenNavLinks.map((item) => {
               const Icon = item.icon;
               const isActive =
-                item.href === '/portal'
-                  ? pathname === '/portal'
-                  : pathname.startsWith(item.href);
+                item.href === '/portal' ? pathname === '/portal' : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-emerald-600 text-white'
-                      : 'hover:bg-slate-800 hover:text-white'
+                    isActive ? 'bg-emerald-600 text-white' : 'hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -92,18 +97,24 @@ function PortalSidebar() {
 
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm">
-                BK
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm">
+                {initialsOf(user)}
               </div>
-              <div>
-                <p className="text-xs font-bold text-white">Beth Kimani</p>
-                <p className="text-[11px] text-slate-400">Citizen</p>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-white">{displayName(user)}</p>
+                <p className="text-[11px] text-slate-400">{roleLabel(user.role)}</p>
               </div>
             </div>
-            <Link href="/signin" className="text-slate-400 hover:text-white transition-colors" title="Sign Out">
+            <button
+              type="button"
+              onClick={signOut}
+              className="text-slate-400 hover:text-white transition-colors"
+              title="Sign Out"
+              aria-label="Sign out"
+            >
               <LogOutIcon className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -113,13 +124,13 @@ function PortalSidebar() {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      <Suspense fallback={<div className="w-64 bg-slate-900" />}>
-        <PortalSidebar />
-      </Suspense>
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {children}
-      </main>
-    </div>
+    <RequireRole allow={['CITIZEN']}>
+      <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+        <Suspense fallback={<div className="w-64 bg-slate-900" />}>
+          <PortalSidebar />
+        </Suspense>
+        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
+      </div>
+    </RequireRole>
   );
 }

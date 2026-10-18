@@ -1,79 +1,128 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AlarmClockIcon, ChevronRightIcon, InboxIcon, MapPinIcon, SearchIcon } from 'lucide-react';
-import { requests } from '@/data/requests';
-import { categories } from '@/data/categories';
-import { StatusBadge, PriorityBadge } from '@/components/StatusBadge';
+import {
+  ChevronRightIcon,
+  ClipboardListIcon,
+  InboxIcon,
+  Loader2Icon,
+  MapPinIcon,
+  SearchIcon,
+} from 'lucide-react';
+import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/ui';
-import { daysUntil, relativeTime } from '@/utils/format';
-import type { ServiceRequest } from '@/types/request';
+import { useCurrentUser } from '@/components/RequireRole';
+import { getMyRequests, type ApiRequest } from '@/api/requests';
+import { getCategories, type Category } from '@/api/reference';
+import { relativeTime } from '@/utils/format';
 
-type Queue = 'assigned' | 'new' | 'priority' | 'sla' | 'recent';
+type Queue = 'assigned' | 'new' | 'open' | 'done' | 'recent';
+type BadgeStatus = React.ComponentProps<typeof StatusBadge>['status'];
 
-const open = (r: ServiceRequest) => r.status === 'Pending' || r.status === 'In Progress';
-const queues: { id: Queue; label: string; filter: (r: ServiceRequest) => boolean }[] = [
-  { id: 'assigned', label: 'Assigned to me', filter: (r) => r.officer === 'J. Kariuki' && open(r) },
-  { id: 'new', label: 'Awaiting assignment', filter: (r) => !r.department && open(r) },
-  { id: 'priority', label: 'Priority cases', filter: (r) => (r.priority === 'High' || r.priority === 'Urgent') && open(r) },
-  { id: 'sla', label: 'Near or past deadline', filter: (r) => !!r.slaDue && open(r) && daysUntil(r.slaDue) <= 1 },
+const isOpen = (r: ApiRequest) => r.status === 'Pending' || r.status === 'In Progress';
+
+const queues: { id: Queue; label: string; filter: (r: ApiRequest, myId: number) => boolean }[] = [
+  { id: 'assigned', label: 'Assigned to me', filter: (r, me) => r.assigned_officer === me && isOpen(r) },
+  { id: 'new', label: 'Awaiting assignment', filter: (r) => r.assigned_officer === null && isOpen(r) },
+  { id: 'open', label: 'All open cases', filter: (r) => isOpen(r) },
+  { id: 'done', label: 'Resolved or rejected', filter: (r) => !isOpen(r) },
   { id: 'recent', label: 'Recently updated', filter: () => true },
 ];
 
-function SlaLabel({ due }: { due?: string }) {
-  if (!due) return <span className="text-xs text-muted">—</span>;
-  const d = daysUntil(due);
-  const cls = d < 0 ? 'text-danger' : d <= 1 ? 'text-warning-ink' : 'text-muted';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold ${cls}`}
-      suppressHydrationWarning
-    >
-      <AlarmClockIcon className="h-3.5 w-3.5" aria-hidden="true" />
-      {d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Due today' : `${d}d left`}
-    </span>
-  );
+function Assignee({ officerId, myId }: { officerId: number | null; myId: number }) {
+  if (officerId === null) {
+    return <span className="whitespace-nowrap text-xs font-semibold text-warning-ink">Unassigned</span>;
+  }
+  if (officerId === myId) {
+    return <span className="whitespace-nowrap text-xs font-semibold text-brand">Assigned to you</span>;
+  }
+  return <span className="whitespace-nowrap text-xs text-muted">Assigned</span>;
 }
 
 function OfficerWorkspace() {
+  const user = useCurrentUser();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  const queueParam = params.get('queue');
-  const active: Queue = queues.some((x) => x.id === queueParam) ? (queueParam as Queue) : 'assigned';
+  const [requests, setRequests] = useState<ApiRequest[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [greeting] = useState(() => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  });
+
+  const queueParam = params.get('queue');
+  const active: Queue = queues.some((x) => x.id === queueParam) ? (queueParam as Queue) : 'assigned';
   const queue = queues.find((x) => x.id === active) ?? queues[0];
 
-  let list = requests
-    .filter(queue.filter)
-    .filter(
-      (r) =>
-        (!q || (r.ref + r.title + r.ward).toLowerCase().includes(q.toLowerCase())) &&
-        (!cat || r.category === cat),
-    );
-  if (active === 'recent') list = [...list].sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, 8);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([getMyRequests(), getCategories()])
+      .then(([r, c]) => {
+        if (!alive) return;
+        setRequests(r);
+        setCategories(c);
+      })
+      .catch(() => {
+        if (alive) setLoadError('Could not load cases. Check that the backend is running, then reload.');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const catName = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+
+  const counts = useMemo(() => {
+    const out = {} as Record<Queue, number>;
+    for (const x of queues) {
+      out[x.id] =
+        x.id === 'recent'
+          ? Math.min(8, requests.length)
+          : requests.filter((r) => x.filter(r, user.id)).length;
+    }
+    return out;
+  }, [requests, user.id]);
+
+  const list = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    let out = requests
+      .filter((r) => queue.filter(r, user.id))
+      .filter(
+        (r) =>
+          (!needle || `${r.ref_number} ${r.title} ${r.ward}`.toLowerCase().includes(needle)) &&
+          (!cat || String(r.category) === cat),
+      );
+    if (active === 'recent') {
+      out = [...out].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8);
+    }
+    return out;
+  }, [requests, queue, active, q, cat, user.id]);
 
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink md:text-[28px]">Good morning, James</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink md:text-[28px]">
+          {greeting}, {user.first_name || user.username}
+        </h1>
         <p className="mt-1 text-muted">
-          You have{' '}
-          <span className="font-semibold text-ink">{requests.filter(queues[0].filter).length} open cases</span>, and{' '}
-          <span className="font-semibold text-danger" suppressHydrationWarning>
-            {requests.filter(queues[3].filter).length}
-          </span>{' '}
-          are near or past their deadline.
+          You have <span className="font-semibold text-ink">{counts.assigned} open cases</span> assigned to
+          you, and <span className="font-semibold text-ink">{counts.new}</span> waiting for assignment.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5" role="tablist" aria-label="Case queues">
         {queues.map((x) => {
-          const n = x.id === 'recent' ? Math.min(8, requests.length) : requests.filter(x.filter).length;
           const sel = x.id === active;
           return (
             <button
@@ -86,12 +135,7 @@ function OfficerWorkspace() {
                 sel ? 'border-brand bg-white ring-1 ring-brand' : 'border-line bg-white hover:border-brand/40'
               }`}
             >
-              <p
-                className={`text-2xl font-extrabold ${x.id === 'sla' && n > 0 ? 'text-danger' : 'text-ink'}`}
-                suppressHydrationWarning
-              >
-                {n}
-              </p>
+              <p className="text-2xl font-extrabold text-ink">{loading ? '–' : counts[x.id]}</p>
               <p className={`mt-1 text-xs font-semibold ${sel ? 'text-brand' : 'text-muted'}`}>{x.label}</p>
             </button>
           );
@@ -122,12 +166,22 @@ function OfficerWorkspace() {
           >
             <option value="">All categories</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
 
-        {list.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted">
+            <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading cases…
+          </div>
+        ) : loadError ? (
+          <p role="alert" className="p-6 text-sm text-danger">
+            {loadError}
+          </p>
+        ) : list.length === 0 ? (
           <EmptyState
             icon={InboxIcon}
             title="Nothing in this queue"
@@ -135,44 +189,40 @@ function OfficerWorkspace() {
           />
         ) : (
           <ul className="divide-y divide-line">
-            {list.map((r) => {
-              const c = categories.find((x) => x.id === r.category);
-              const Icon = c?.icon;
-              return (
-                <li key={r.ref}>
-                  <Link
-                    href={`/officer/cases/${r.ref}`}
-                    className="group grid gap-3 px-4 py-4 transition-colors duration-150 hover:bg-canvas/70 md:grid-cols-[1fr_auto_auto_auto_auto] md:items-center md:gap-6 md:px-5"
-                  >
-                    <div className="flex min-w-0 gap-3">
-                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-canvas text-brand">
-                        {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-ink">{r.title}</p>
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                          <span className="font-mono font-semibold">{r.ref}</span>
-                          <span className="flex items-center gap-0.5">
-                            <MapPinIcon className="h-3 w-3" aria-hidden="true" />
-                            {r.ward}, {r.subCounty}
-                          </span>
-                          <span suppressHydrationWarning>Updated {relativeTime(r.updated)}</span>
-                        </p>
-                      </div>
+            {list.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/officer/cases/${r.id}`}
+                  className="group grid gap-3 px-4 py-4 transition-colors duration-150 hover:bg-canvas/70 md:grid-cols-[1fr_auto_auto_auto] md:items-center md:gap-6 md:px-5"
+                >
+                  <div className="flex min-w-0 gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-canvas text-brand">
+                      <ClipboardListIcon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-ink">{r.title}</p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                        <span className="font-mono font-semibold">{r.ref_number}</span>
+                        <span>{catName.get(r.category) ?? 'Request'}</span>
+                        <span className="flex items-center gap-0.5">
+                          <MapPinIcon className="h-3 w-3" aria-hidden="true" />
+                          {r.ward}, {r.sub_county}
+                        </span>
+                        <span>Updated {relativeTime(r.updated_at)}</span>
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 md:contents">
-                      <PriorityBadge priority={r.priority} />
-                      <StatusBadge status={r.status} />
-                      <SlaLabel due={r.status === 'Resolved' ? undefined : r.slaDue} />
-                      <ChevronRightIcon
-                        className="ml-auto h-4 w-4 text-muted transition-transform duration-150 group-hover:translate-x-0.5 md:ml-0"
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+                  </div>
+                  <div className="flex items-center gap-3 md:contents">
+                    <StatusBadge status={r.status as BadgeStatus} />
+                    <Assignee officerId={r.assigned_officer} myId={user.id} />
+                    <ChevronRightIcon
+                      className="ml-auto h-4 w-4 text-muted transition-transform duration-150 group-hover:translate-x-0.5 md:ml-0"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </Link>
+              </li>
+            ))}
           </ul>
         )}
       </section>

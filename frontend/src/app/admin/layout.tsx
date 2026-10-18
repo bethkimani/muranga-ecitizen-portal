@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3Icon,
   Building2Icon,
@@ -15,6 +15,8 @@ import {
   XIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { RequireRole, useCurrentUser } from '@/components/RequireRole';
+import { displayName, initialsOf, logout, roleLabel } from '@/api/auth';
 
 const adminNavLinks = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboardIcon },
@@ -27,7 +29,14 @@ const adminNavLinks = [
 
 function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  function signOut() {
+    logout();
+    router.replace('/signin');
+  }
 
   return (
     <>
@@ -58,16 +67,15 @@ function AdminSidebar() {
           <nav className="mt-6 space-y-1">
             {adminNavLinks.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive =
+                item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-emerald-600 text-white'
-                      : 'hover:bg-slate-800 hover:text-white'
+                    isActive ? 'bg-emerald-600 text-white' : 'hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -78,25 +86,27 @@ function AdminSidebar() {
           </nav>
         </div>
 
-        {/* Admin Account Badge */}
+        {/* Signed-in account */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white text-sm">
-                BK
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white text-sm">
+                {initialsOf(user)}
               </div>
-              <div>
-                <p className="text-xs font-bold text-white">Beth Kimani</p>
-                <p className="text-[11px] text-slate-400">County Administrator</p>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-white">{displayName(user)}</p>
+                <p className="text-[11px] text-slate-400">{roleLabel(user.role)}</p>
               </div>
             </div>
-            <Link
-              href="/signin"
+            <button
+              type="button"
+              onClick={signOut}
               className="text-slate-400 hover:text-white transition-colors"
               title="Sign Out"
+              aria-label="Sign out"
             >
               <LogOutIcon className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -106,13 +116,13 @@ function AdminSidebar() {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      <Suspense fallback={<div className="w-64 bg-slate-900" />}>
-        <AdminSidebar />
-      </Suspense>
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {children}
-      </main>
-    </div>
+    <RequireRole allow={['ADMIN']}>
+      <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+        <Suspense fallback={<div className="w-64 bg-slate-900" />}>
+          <AdminSidebar />
+        </Suspense>
+        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">{children}</main>
+      </div>
+    </RequireRole>
   );
 }
