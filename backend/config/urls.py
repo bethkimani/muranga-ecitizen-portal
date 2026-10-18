@@ -9,6 +9,8 @@ from apps.users.login import LoginView
 from apps.users.staff import StaffViewSet
 from apps.service_requests.views import ServiceRequestViewSet
 from apps.categories.views import DepartmentViewSet, CategoryViewSet
+from apps.announcements.views import AnnouncementViewSet
+from apps.audit_logs.views import AuditLogViewSet  # ADDED
 
 
 def home(request):
@@ -40,6 +42,16 @@ router.register(
     r'staff',
     StaffViewSet,
     basename='staff',
+)
+router.register(
+    r'announcements',
+    AnnouncementViewSet,
+    basename='announcement',
+)
+router.register(                                           # ADDED
+    r'audit-logs',
+    AuditLogViewSet,
+    basename='auditlog',
 )
 
 
