@@ -61,7 +61,7 @@ muranga-ecitizen-frontend/
 ├── package.json
 ├── tailwind.config.ts
 └── tsconfig.json
-🚀 Local Development Setup
+ Local Development Setup
 Prerequisites
 Node.js v18.0 or higher
 
