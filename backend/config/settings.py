@@ -122,11 +122,11 @@ SIMPLE_JWT = {
 }
 
 # CORS for the Next.js frontend.
-# On Render set: CORS_ALLOWED_ORIGINS=http://localhost:3000,https://muranga-ecitizen-frontend.vercel.app
+# Override on Render with CORS_ALLOWED_ORIGINS (comma-separated).
 # Trailing slashes are stripped automatically (they break corsheaders.E014).
 CORS_ALLOWED_ORIGINS = env_list(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000',
+    'http://localhost:3000,http://127.0.0.1:3000,https://muranga-ecitizen-frontend.vercel.app',
 )
 CSRF_TRUSTED_ORIGINS = [o for o in CORS_ALLOWED_ORIGINS if o.startswith('https://')]
 _render_url = os.getenv('RENDER_EXTERNAL_URL')
