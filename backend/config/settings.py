@@ -113,8 +113,8 @@ SIMPLE_JWT = {
 
 # CORS for the Next.js frontend
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
+    'https://muranga-ecitizen-frontend.vercel.app/',
+    'https://muranga-ecitizen-frontend.vercel.app/',
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
