@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { RequireRole, useCurrentUser } from '@/components/RequireRole';
+import { IdleLogout } from '@/components/IdleLogout'; // NEW
 import { useLookups } from '@/hooks/useLookups';
 import { displayName, initialsOf, logout, roleLabel } from '@/api/auth';
 
@@ -55,6 +56,8 @@ function OfficerShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-canvas md:flex">
+      <IdleLogout /> {/* NEW */}
+
       {mobileOpen && (
         <button type="button" aria-label="Close navigation" className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
       )}

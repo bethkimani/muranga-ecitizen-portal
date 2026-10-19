@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  KeyRoundIcon, // NEW
   Loader2Icon,
   PencilIcon,
   RefreshCwIcon,
@@ -23,6 +24,7 @@ import {
   createStaff,
   deactivateStaff,
   listStaff,
+  sendStaffReset, // NEW
   updateStaff,
   type StaffMember,
 } from '@/api/staff';
@@ -101,6 +103,9 @@ export default function AdminUsersPage() {
   // Deactivate
   const [deactivate, setDeactivate] = useState<StaffMember | null>(null);
 
+  // NEW: send a password reset message
+  const [resetFor, setResetFor] = useState<StaffMember | null>(null);
+
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -176,7 +181,9 @@ export default function AdminUsersPage() {
         password: form.password,
       });
       setRows((r) => [...r, created].sort(byName));
-      toast.success(`Account created for ${fullName(created)}. Give them the temporary password privately.`);
+      toast.success(
+        `Account created for ${fullName(created)}. Give them the temporary password privately, or use the key button to send a reset link.`,
+      );
       setAdding(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
@@ -234,6 +241,21 @@ export default function AdminUsersPage() {
     }
   };
 
+  // ---------- NEW: send reset code and link ----------
+  const confirmSendReset = async () => {
+    if (!resetFor) return;
+    setSaving(true);
+    try {
+      await sendStaffReset(resetFor.id);
+      toast.success(`Reset code and link sent to ${resetFor.email}.`);
+      setResetFor(null);
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ---------- Deactivate / reactivate ----------
   const confirmDeactivate = async () => {
     if (!deactivate) return;
@@ -284,7 +306,7 @@ export default function AdminUsersPage() {
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Staff and user management"
-        description="Create staff accounts, set roles and departments, and deactivate accounts. Passwords are never visible to administrators."
+        description="Create staff accounts, set roles and departments, send password resets, and deactivate accounts. Passwords are never visible to administrators."
         actions={
           <button type="button" onClick={openAdd} className="btn-primary" disabled={loading}>
             <UserPlusIcon className="h-4 w-4" /> Add staff
@@ -390,6 +412,20 @@ export default function AdminUsersPage() {
                           >
                             <PencilIcon className="h-4 w-4" />
                           </button>
+
+                          {/* NEW: send password reset */}
+                          {s.is_active && (
+                            <button
+                              type="button"
+                              onClick={() => setResetFor(s)}
+                              className="btn-ghost h-8 w-8 px-0"
+                              title="Send password reset"
+                              aria-label={`Send password reset to ${fullName(s)}`}
+                            >
+                              <KeyRoundIcon className="h-4 w-4" />
+                            </button>
+                          )}
+
                           {s.is_active ? (
                             <button
                               type="button"
@@ -427,7 +463,7 @@ export default function AdminUsersPage() {
         open={adding}
         onClose={() => setAdding(false)}
         title="Add a staff member"
-        description="They sign in with their phone number and the temporary password below."
+        description="They sign in with their phone number or email and the temporary password below. They can also use “Forgot password” to choose their own."
         footer={
           <>
             <button type="button" className="btn-secondary" onClick={() => setAdding(false)}>
@@ -476,7 +512,7 @@ export default function AdminUsersPage() {
             />
           </Field>
 
-          <Field label="Phone number (used to sign in)" htmlFor="sp" error={formErrors.phone}>
+          <Field label="Phone number" htmlFor="sp" error={formErrors.phone}>
             <input
               id="sp"
               type="tel"
@@ -589,7 +625,7 @@ export default function AdminUsersPage() {
               </Field>
             )}
 
-            <Field label="Reset password (optional)" htmlFor="epw" error={editErrors.password}>
+            <Field label="Set a temporary password (optional)" htmlFor="epw" error={editErrors.password}>
               <div className="flex gap-2">
                 <input
                   id="epw"
@@ -610,9 +646,40 @@ export default function AdminUsersPage() {
                   <RefreshCwIcon className="h-4 w-4" /> Generate
                 </button>
               </div>
+              <p className="mt-1.5 text-xs text-muted">
+                Prefer the key button on the staff list: it lets the person choose their own password.
+              </p>
             </Field>
           </div>
         )}
+      </Modal>
+
+      {/* NEW: send password reset */}
+      <Modal
+        open={!!resetFor}
+        onClose={() => setResetFor(null)}
+        title={`Send a password reset to ${resetFor ? fullName(resetFor) : ''}?`}
+        description="They get a 6-digit code and a link by email and SMS, and choose their own new password. You never see it."
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setResetFor(null)}>
+              Cancel
+            </button>
+            <button type="button" className="btn-primary" onClick={confirmSendReset} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin" /> Sending…
+                </>
+              ) : (
+                'Send reset'
+              )}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted">
+          The message goes to {resetFor?.email} and {resetFor?.phone_number}. The code expires in 10 minutes.
+        </p>
       </Modal>
 
       {/* Deactivate */}
