@@ -49,6 +49,36 @@ export function logout() {
   tokens.clear();
 }
 
+// ---------- Verification and password reset (no sign-in needed) ----------
+
+const post = (path: string, body: object) =>
+  api<{ detail: string }>(path, {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify(body),
+  });
+
+// Sends a new verification code by email and SMS
+export const sendVerification = (identifier: string) =>
+  post('/auth/verify/send/', { identifier: normalizeIdentifier(identifier) });
+
+// Confirms the 6-digit code (typed in, or taken from the email link)
+export const confirmVerification = (identifier: string, code: string) =>
+  post('/auth/verify/confirm/', { identifier: normalizeIdentifier(identifier), code });
+
+// Sends a password reset code by email and SMS
+export const forgotPassword = (identifier: string) =>
+  post('/auth/password/forgot/', { identifier: normalizeIdentifier(identifier) });
+
+export const resetPassword = (identifier: string, code: string, new_password: string) =>
+  post('/auth/password/reset/', {
+    identifier: normalizeIdentifier(identifier),
+    code,
+    new_password,
+  });
+
+// ---------- Helpers ----------
+
 // Where each role lands after signing in
 export function homeFor(role: Role) {
   if (role === 'ADMIN') return '/admin';

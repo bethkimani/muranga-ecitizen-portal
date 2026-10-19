@@ -33,15 +33,19 @@ export class ApiError extends Error {
 async function refreshAccessToken(): Promise<boolean> {
   const refresh = tokens.refresh;
   if (!refresh) return false;
-  const res = await fetch(`${API_URL}/auth/refresh/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh }),
-  });
-  if (!res.ok) return false;
-  const data = await res.json();
-  tokens.set(data.access, data.refresh);
-  return true;
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    tokens.set(data.access, data.refresh);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function api<T>(
@@ -63,8 +67,14 @@ export async function api<T>(
 
   let res = await doFetch();
 
-  if (res.status === 401 && auth && (await refreshAccessToken())) {
-    res = await doFetch();
+  // Expired access token: try to refresh. If the session is over, sign the user out.
+  if (res.status === 401 && auth && tokens.refresh) {
+    if (await refreshAccessToken()) {
+      res = await doFetch();
+    } else {
+      tokens.clear();
+      if (typeof window !== 'undefined') window.location.href = '/signin';
+    }
   }
 
   const text = await res.text();

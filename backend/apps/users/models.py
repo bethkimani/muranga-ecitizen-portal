@@ -34,6 +34,7 @@ class User(AbstractUser):
         null=True,
     )
 
+    # Reused to mean "account verified" (email or phone code confirmed).
     is_phone_verified = models.BooleanField(default=False)
 
     department = models.ForeignKey(
@@ -59,3 +60,23 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.role})"
+
+
+class OneTimeCode(models.Model):
+    class Purpose(models.TextChoices):
+        VERIFY = 'VERIFY', 'Verify account'
+        RESET = 'RESET', 'Reset password'
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='one_time_codes',
+    )
+    purpose = models.CharField(max_length=10, choices=Purpose.choices)
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user_id} {self.purpose} ({'used' if self.used else 'active'})"

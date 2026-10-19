@@ -7,10 +7,16 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.users.views import RegisterView, CurrentUserView
 from apps.users.login import LoginView
 from apps.users.staff import StaffViewSet
+from apps.users.verification import (  # NEW
+    SendCodeView,
+    ConfirmVerifyView,
+    ResetPasswordView,
+    ChangePasswordView,
+)
 from apps.service_requests.views import ServiceRequestViewSet
 from apps.categories.views import DepartmentViewSet, CategoryViewSet
 from apps.announcements.views import AnnouncementViewSet
-from apps.audit_logs.views import AuditLogViewSet  # ADDED
+from apps.audit_logs.views import AuditLogViewSet
 
 
 def home(request):
@@ -48,7 +54,7 @@ router.register(
     AnnouncementViewSet,
     basename='announcement',
 )
-router.register(                                           # ADDED
+router.register(
     r'audit-logs',
     AuditLogViewSet,
     basename='auditlog',
@@ -78,5 +84,37 @@ urlpatterns = [
         CurrentUserView.as_view(),
         name='auth_me',
     ),
+
+    # NEW: account verification (email link or code, plus SMS)
+    path(
+        'api/auth/verify/send/',
+        SendCodeView.as_view(purpose='VERIFY'),
+        name='auth_verify_send',
+    ),
+    path(
+        'api/auth/verify/confirm/',
+        ConfirmVerifyView.as_view(),
+        name='auth_verify_confirm',
+    ),
+
+    # NEW: password reset for residents, officers and admins
+    path(
+        'api/auth/password/forgot/',
+        SendCodeView.as_view(purpose='RESET'),
+        name='auth_password_forgot',
+    ),
+    path(
+        'api/auth/password/reset/',
+        ResetPasswordView.as_view(),
+        name='auth_password_reset',
+    ),
+
+    # NEW: change password while signed in (your profile page already calls this path)
+    path(
+        'api/auth/change-password/',
+        ChangePasswordView.as_view(),
+        name='auth_change_password',
+    ),
+
     path('api/', include(router.urls)),
 ]

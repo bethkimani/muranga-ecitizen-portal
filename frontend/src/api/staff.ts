@@ -41,3 +41,8 @@ export function updateStaff(id: number, input: Partial<NewStaff> & { is_active?:
 export function deactivateStaff(id: number) {
   return api<null>(`/staff/${id}/`, { method: 'DELETE' });
 }
+
+// Admin only: sends the staff member a code and link to choose a new password
+export function sendStaffReset(id: number) {
+  return api<{ detail: string }>(`/staff/${id}/send-reset/`, { method: 'POST' });
+}

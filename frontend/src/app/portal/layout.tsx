@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { RequireRole, useCurrentUser } from '@/components/RequireRole';
+import { IdleLogout } from '@/components/IdleLogout'; // NEW
 import { displayName, initialsOf, logout } from '@/api/auth';
 
 const navLinks = [
@@ -87,6 +88,8 @@ function PortalShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-canvas">
+      <IdleLogout /> {/* NEW */}
+
       {/* Mobile backdrop */}
       {mobileOpen && (
         <button
