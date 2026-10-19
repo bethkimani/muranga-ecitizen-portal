@@ -1,7 +1,10 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from apps.audit_logs.mixins import AuditActorMixin
+from .otp import deliver, issue_code
 from .permissions import IsAdminRole
 from .serializers import check_email_free
 
@@ -57,8 +60,14 @@ class StaffViewSet(AuditActorMixin, viewsets.ModelViewSet):
     queryset = User.objects.exclude(role='CITIZEN').select_related('department').order_by('first_name')
 
     def perform_destroy(self, instance):
-        # Deactivate instead of deleting so the audit trail and request history stay intact
         if instance.pk == self.request.user.pk:
             raise serializers.ValidationError('You cannot deactivate your own account.')
         instance.is_active = False
         instance.save(update_fields=['is_active'])
+
+    @action(detail=True, methods=['post'], url_path='send-reset')
+    def send_reset(self, request, pk=None):
+        user = self.get_object()
+        code = issue_code(user, 'RESET', force=True)
+        deliver(user, 'RESET', code)
+        return Response({'detail': 'Reset message sent.'})

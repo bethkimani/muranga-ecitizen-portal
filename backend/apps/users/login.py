@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -13,10 +14,7 @@ def normalize_phone(value: str) -> str:
 
 
 class LoginSerializer(TokenObtainPairSerializer):
-    """Accepts `identifier` (phone number or email) and `password`.
-
-    The older `phone_number` field is still accepted, so existing clients keep working.
-    """
+    """Accepts `identifier` (phone number or email) and `password`."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -33,15 +31,18 @@ class LoginSerializer(TokenObtainPairSerializer):
         if '@' in identifier:
             login_value = identifier
             matches = list(User.objects.filter(email__iexact=identifier)[:2])
-            # Use the email only if it belongs to exactly one account.
-            # Otherwise leave it as typed, and the password check fails with the normal 401.
             if len(matches) == 1:
                 login_value = getattr(matches[0], self.username_field)
         else:
             login_value = normalize_phone(identifier)
 
         attrs = {**attrs, self.username_field: login_value}
-        return super().validate(attrs)
+        data = super().validate(attrs)
+
+        # Residents must verify before they can sign in (staff accounts are created verified)
+        if self.user.role == 'CITIZEN' and not self.user.is_phone_verified:
+            raise PermissionDenied('Please verify your account first.')
+        return data
 
 
 class LoginView(TokenObtainPairView):
