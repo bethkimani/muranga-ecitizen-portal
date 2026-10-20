@@ -16,7 +16,7 @@ Use these accounts to try each role. Sign in at https://muranga-ecitizen-fronten
 
 | Role | Email | Password |
 |---|---|---|
-| Admin (County Administrator) | kbwaceke@gmail.com | Beth@2026 |
+| Admin (County Administrator) | kbwaceke@gmail.com or 0703941556 | Beth@2026 |
 | Officer | beth@muranga.go.ke | mDbzN8R4SdsB#9 |
 | Citizen | zachayo@gmail.com | 273bewaki??K# |
 
