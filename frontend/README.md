@@ -1,31 +1,49 @@
-# Muranga eCitizen Portal: Frontend
+# Murang'a e-Citizen Portal: Frontend
 
-A web portal where Muranga County residents submit and track service requests, officers handle assigned cases, and administrators manage the system and view analytics.
+A web portal where Murang'a County residents submit and track service requests, officers handle assigned cases, and administrators manage the system and view analytics.
+
+## Live links
 
 | | |
 |---|---|
-| **Live app** | `<your deployed link>` |
-| **Backend repo / API** | `<your backend link>` |
-| **Design (Figma)** | https://www.figma.com/design/gmTQ1PpSwJuIhIhV61h4Qj/Untitled?node-id=0-1&t=fQCBkGKQ3hVSRrX0-0 |
+| Live app (frontend, Vercel) | https://muranga-ecitizen-frontend-final.vercel.app/ |
+| Live API (backend, Render) | https://citizen-muranga-portal.onrender.com |
+| Design (Figma) | https://www.figma.com/design/gmTQ1PpSwJuIhIhV61h4Qj/Untitled?node-id=0-1&t=fQCBkGKQ3hVSRrX0-0 |
+
+## Demo login credentials
+
+Use these accounts to try each role. Sign in at https://muranga-ecitizen-frontend-final.vercel.app/signin
+
+| Role | Email | Password |
+|---|---|---|
+| Admin (County Administrator) | kbwaceke@gmail.com | Beth@2026 |
+| Officer | beth@muranga.go.ke | mDbzN8R4SdsB#9 |
+| Citizen | zachayo@gmail.com | 273bewaki??K# |
+
+You can also create your own citizen account from the Register page.
+
+### Important notes before you test
+
+1. **Creating an account or signing in can take 30 to 60 seconds.** Both the frontend (Vercel) and the backend (Render) run on free tiers. The free Render service goes to sleep when it has not been used for a while, and the first request has to wake it up. The two services are also hosted in different places, which adds network latency. Please wait for the request to finish and do not press the button twice. After the first request, the app responds much faster.
+2. **Email and SMS verification is switched off for now.** After registering, you are taken straight to the sign-in page and can log in immediately. See "Account verification (planned)" below.
 
 ## Tech stack
 
 - Next.js (App Router) and TypeScript
 - Tailwind CSS
 - REST API client in `src/api`
+- Hosted on Vercel (free tier)
 
 ## Features
 
 ### Core
-- **Registration and sign-in** with role-based redirects (citizen, officer, admin)
-- **Submit a request** with a category, a location (map picker) and an optional image
-- **Request tracking** with a status timeline: Pending → In Progress → Resolved
-- **Officer workspace** to review and update assigned cases
-- **Admin analytics** with open vs resolved request counts and charts
+- Registration and sign-in with role-based redirects (citizen, officer, admin)
+- Submit a request with a category, a location (map picker) and an optional image
+- Request tracking with a status timeline: Pending, In Progress, Resolved
+- Officer workspace to review and update assigned cases
+- Admin analytics with open versus resolved request counts and charts
 
 ### Bonus
-- Account verification by email and SMS (`/verify`)
-- Password reset (`/forgot`, `/reset`)
 - Role-based workspaces: `/portal`, `/officer`, `/admin`
 - Staff management (admin users)
 - Audit logs
@@ -33,23 +51,23 @@ A web portal where Muranga County residents submit and track service requests, o
 - Request assignment, departments, categories and locations management
 - Reports and system settings
 - Automatic logout after inactivity
-- Postman collection (in the backend repo)
+- Postman collection (in the backend repository)
 
-## Screenshots
+### Account verification (planned)
 
-| Page | Screenshot |
-|---|---|
-| Sign in | ![Sign in](docs/screenshots/signin.png) |
-| Citizen dashboard | ![Citizen dashboard](docs/screenshots/dashboard.png) |
-| Submit request | ![Submit request](docs/screenshots/submit-request.png) |
-| Request tracking | ![Request tracking](docs/screenshots/tracking.png) |
-| Officer page | ![Officer page](docs/screenshots/officer.png) |
-| Admin analytics | ![Admin analytics](docs/screenshots/admin-analytics.png) |
+Account verification by email and SMS, and password reset by email, are built in the code but are **not active in this release**. They will be enabled in a future version for two reasons:
+
+1. **Brevo has not yet verified my account.** Brevo is the email provider used to send the one-time codes, and until it approves the account, it cannot send mail reliably.
+2. **A domain name for Murang'a County is needed.** To make verification emails reach the inbox instead of the spam folder, the emails must be sent from an address on a domain the county owns and authenticates (SPF and DKIM). A free personal address cannot do this.
+
+Once both are in place, verification is turned on with the environment variables described below.
+
+
 
 ## Design decisions
 
 - **Colour:** a small palette with one primary colour for actions, and distinct status colours for Pending, In Progress and Resolved so progress is readable at a glance.
-- **One consistent layout:** a shared app shell (header, side navigation, content area) is used by every role, so the interface feels familiar whichever workspace you are in.
+- **One consistent layout:** a shared app shell (header, side navigation, content area) is used by every role, so the interface feels familiar in any workspace.
 - **Role-based dashboards:** citizens, officers and admins each get their own layout and navigation, and routes are guarded by role.
 - **Responsive:** layouts adapt to phones, tablets and desktops.
 - **Clear feedback:** validation and API errors appear in plain language next to the relevant field, and empty states explain what to do next.
@@ -61,7 +79,7 @@ A web portal where Muranga County residents submit and track service requests, o
 ```
 frontend/
 ├── public/                      # Static assets
-├── docs/screenshots/            # README screenshots
+├            
 ├── src/
 │   ├── app/                     # Routes (Next.js App Router)
 │   │   ├── (auth)/              # Sign in, register, verify, forgot, reset
@@ -141,9 +159,25 @@ Open http://localhost:3000.
 
 | Variable | Description | Example |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Base URL of the backend API | `http://localhost:8000/api` |
+| `NEXT_PUBLIC_API_URL` | Base URL of the backend API | `https://citizen-muranga-portal.onrender.com/api` |
 
 Never commit `.env` or `.env.local`. Only `.env.example` belongs in the repository.
+
+### Turning verification back on later
+
+Verification is switched off in `src/api/auth.ts`:
+
+```ts
+export const OTP_REQUIRED = false;
+```
+
+When email delivery is ready, replace that line with:
+
+```ts
+export const OTP_REQUIRED = process.env.NEXT_PUBLIC_OTP_REQUIRED !== '0';
+```
+
+Then set `OTP_REQUIRED=1` on the backend (Render), and redeploy both services.
 
 ## Scripts
 
@@ -152,11 +186,10 @@ Never commit `.env` or `.env.local`. Only `.env.example` belongs in the reposito
 | `npm run dev` | Start the development server |
 | `npm run build` | Create a production build |
 | `npm run start` | Run the production build |
-| 
 
 ## Deployment
 
-Deployed on `<Vercel / Netlify>`. Set `NEXT_PUBLIC_API_URL` in the host's environment settings to the deployed backend URL, then redeploy.
+Deployed on Vercel at https://muranga-ecitizen-frontend-final.vercel.app/. Set `NEXT_PUBLIC_API_URL` in the Vercel project settings to the deployed backend URL, then redeploy. Environment variables beginning with `NEXT_PUBLIC_` are read at build time, so a redeploy is required after changing them.
 
 ## Roles
 
@@ -165,3 +198,13 @@ Deployed on `<Vercel / Netlify>`. Set `NEXT_PUBLIC_API_URL` in the host's enviro
 | Citizen | `/portal` | Submit and track requests, manage profile, read notifications |
 | Officer | `/officer` | View assigned cases, update status |
 | Admin | `/admin` | Assign requests, manage staff and lookups, view analytics, audit logs and announcements |
+
+## Known limitations
+
+- The first request after a period of inactivity takes 30 to 60 seconds (free-tier cold start).
+- Email and SMS verification and password reset are not active yet (see "Account verification (planned)").
+
+## Contact
+
+kbwaceke@gmail.com
+0112280703
